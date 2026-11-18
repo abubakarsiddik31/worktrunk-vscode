@@ -68,21 +68,28 @@ export function activate(context: vscode.ExtensionContext): void {
   const load = async () => {
     const cwd = repoRoot();
     if (!cwd) {
+      log("no folder is open");
       return;
     }
     const wt = resolveWorktrunk(config().get<string>("executable", ""));
     void vscode.commands.executeCommand("setContext", "worktrunk.cliMissing", !wt);
     provider.setUnavailable(!wt);
     if (!wt) {
+      log("the Worktrunk CLI (wt or git-wt) was not found on PATH or in worktrunk.executable");
       return;
     }
     lastRefresh = Date.now();
+    const started = Date.now();
+    log(`listing worktrees of ${cwd} with ${wt}`);
     try {
-      provider.setList(await listWorktrees(wt, cwd, false));
+      const local = await listWorktrees(wt, cwd, false);
+      provider.setList(local);
       summarize();
+      log(`listed ${local.items.length} worktrees in ${Date.now() - started} ms; fetching PR and CI status`);
       const full = await listWorktrees(wt, cwd, true);
       provider.setList(full);
       summarize();
+      log(`PR and CI status ready in ${Date.now() - started} ms`);
       const forge = full.repo.forge;
       const gh = resolveBinary("gh");
       if (config().get<boolean>("findPrsForOtherWorktrees", true) && gh && forge?.provider === "github") {
