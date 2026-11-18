@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import * as vscode from "vscode";
 import { hasUncommitted, isMerged, isRemovable, Worktree, worktreeLabel } from "./format";
 import { PrStatusBar } from "./statusBar";
@@ -12,6 +13,7 @@ import {
   pruneWorktrees,
   removeWorktree,
   resolveBinary,
+  resolveWorktrunk,
   SwitchResult,
   switchTo,
   unlockWorktree,
@@ -67,7 +69,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!cwd) {
       return;
     }
-    const wt = resolveBinary("wt", config().get<string>("executable", ""));
+    const wt = resolveWorktrunk(config().get<string>("executable", ""));
     if (!wt) {
       provider.setError("Could not find the `wt` binary. Install Worktrunk (brew install worktrunk) or set worktrunk.executable.");
       return;
@@ -80,7 +82,7 @@ export function activate(context: vscode.ExtensionContext): void {
       provider.setList(full);
       summarize();
       const forge = full.repo.forge;
-      const gh = resolveBinary("gh", "");
+      const gh = resolveBinary("gh");
       if (config().get<boolean>("findPrsForOtherWorktrees", true) && gh && forge?.provider === "github") {
         finder ??= new PullRequestFinder(gh);
         const shas = full.items
@@ -124,7 +126,7 @@ export function activate(context: vscode.ExtensionContext): void {
     watchers.forEach((w) => w.dispose());
     watchers = [];
     const cwd = repoRoot();
-    const git = resolveBinary("git", "");
+    const git = resolveBinary("git");
     if (!cwd || !git) return;
     let common: string;
     try {
@@ -196,13 +198,15 @@ export function activate(context: vscode.ExtensionContext): void {
       await refresh();
     }),
     vscode.commands.registerCommand("worktrunk.showInTerminal", () => {
-      const terminal = vscode.window.createTerminal({ name: "wt list", cwd: repoRoot() });
+      const wt = resolveWorktrunk(config().get<string>("executable", ""));
+      const command = wt ? basename(wt).replace(/\.exe$/i, "") : "wt";
+      const terminal = vscode.window.createTerminal({ name: `${command} list`, cwd: repoRoot() });
       terminal.show();
-      terminal.sendText("wt list --full");
+      terminal.sendText(`${command} list --full`);
     }),
     vscode.commands.registerCommand("worktrunk.prune", async () => {
       const cwd = repoRoot();
-      const git = resolveBinary("git", "");
+      const git = resolveBinary("git");
       const missing = provider.worktrees().filter((w) => w.item.worktree.prunable);
       if (!cwd || !git) return;
       if (!missing.length) {
@@ -227,8 +231,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const tools = () => {
     const cwd = repoRoot();
-    const wt = resolveBinary("wt", config().get<string>("executable", ""));
-    const git = resolveBinary("git", "");
+    const wt = resolveWorktrunk(config().get<string>("executable", ""));
+    const git = resolveBinary("git");
     if (!cwd || !wt || !git) {
       void vscode.window.showErrorMessage("Worktrunk needs an open git repository and the `wt` and `git` binaries.");
       return undefined;
@@ -330,7 +334,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("worktrunk.checkoutPr", async () => {
       const t = tools();
-      const gh = resolveBinary("gh", "");
+      const gh = resolveBinary("gh");
       if (!t) return;
       if (!gh) {
         void vscode.window.showErrorMessage("Checking out a pull request needs the GitHub CLI (`gh`), logged in.");

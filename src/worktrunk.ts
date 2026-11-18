@@ -64,19 +64,38 @@ const PR_LOOKUP_CONCURRENCY = 4;
 
 const EXTRA_PATH_DIRS = ["/opt/homebrew/bin", "/usr/local/bin", join(homedir(), ".cargo", "bin")];
 
+const IS_WINDOWS = process.platform === "win32";
+const PATH_KEY = Object.keys(process.env).find((key) => key.toUpperCase() === "PATH") ?? "PATH";
+const SEARCH_PATH = [process.env[PATH_KEY] ?? "", ...EXTRA_PATH_DIRS].filter(Boolean).join(delimiter);
+
 const childEnv: NodeJS.ProcessEnv = {
   ...process.env,
-  PATH: [process.env.PATH ?? "", ...EXTRA_PATH_DIRS].filter(Boolean).join(delimiter),
+  [PATH_KEY]: SEARCH_PATH,
   NO_COLOR: "1",
   CLICOLOR_FORCE: "0",
 };
 
-export function resolveBinary(name: string, configured: string): string | undefined {
+function findOnPath(names: string[], accept: (path: string) => boolean = () => true): string | undefined {
+  const dirs = SEARCH_PATH.split(delimiter).filter(Boolean);
+  for (const name of names) {
+    const found = dirs.map((dir) => join(dir, name)).find((candidate) => existsSync(candidate) && accept(candidate));
+    if (found) return found;
+  }
+  return undefined;
+}
+
+export function resolveBinary(name: "git" | "gh"): string | undefined {
+  return findOnPath([IS_WINDOWS ? `${name}.exe` : name]);
+}
+
+// On Windows `wt` is Windows Terminal, so Worktrunk installs as `git-wt` and a WindowsApps `wt.exe` is never ours.
+export function resolveWorktrunk(configured: string): string | undefined {
   if (configured) {
     return existsSync(configured) ? configured : undefined;
   }
-  const dirs = (childEnv.PATH ?? "").split(delimiter);
-  return dirs.map((dir) => join(dir, name)).find((candidate) => existsSync(candidate));
+  return IS_WINDOWS
+    ? findOnPath(["git-wt.exe", "wt.exe"], (path) => !/[\\/]WindowsApps[\\/]/i.test(path))
+    : findOnPath(["wt", "git-wt"]);
 }
 
 export class CommandError extends Error {
