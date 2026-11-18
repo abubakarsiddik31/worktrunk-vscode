@@ -123,6 +123,16 @@
         "category": "Worktrunk"
       },
       {
+        "command": "worktrunk.lock",
+        "title": "Lock Worktree…",
+        "category": "Worktrunk"
+      },
+      {
+        "command": "worktrunk.unlock",
+        "title": "Unlock Worktree",
+        "category": "Worktrunk"
+      },
+      {
         "command": "worktrunk.remove",
         "title": "Remove Worktree…",
         "category": "Worktrunk"
@@ -218,6 +228,16 @@
           "group": "3_copy@2"
         },
         {
+          "command": "worktrunk.lock",
+          "when": "view == worktrunk.worktrees && viewItem =~ /:unlocked\\b/",
+          "group": "8_lock@1"
+        },
+        {
+          "command": "worktrunk.unlock",
+          "when": "view == worktrunk.worktrees && viewItem =~ /:locked\\b/",
+          "group": "8_lock@1"
+        },
+        {
           "command": "worktrunk.remove",
           "when": "view == worktrunk.worktrees && viewItem =~ /:removable\\b/",
           "group": "9_remove@1"
@@ -259,6 +279,14 @@
         {
           "command": "worktrunk.selectRepository",
           "when": "worktrunk.multiRoot"
+        },
+        {
+          "command": "worktrunk.lock",
+          "when": "false"
+        },
+        {
+          "command": "worktrunk.unlock",
+          "when": "false"
         }
       ]
     },

@@ -162,6 +162,14 @@ export async function removeWorktree(wt: string, cwd: string, path: string, opti
   await run(wt, args, cwd, LOCAL_TIMEOUT_MS);
 }
 
+export async function lockWorktree(git: string, cwd: string, path: string, reason: string): Promise<void> {
+  await run(git, ["worktree", "lock", ...(reason ? ["--reason", reason] : []), path], cwd, LOCAL_TIMEOUT_MS);
+}
+
+export async function unlockWorktree(git: string, cwd: string, path: string): Promise<void> {
+  await run(git, ["worktree", "unlock", path], cwd, LOCAL_TIMEOUT_MS);
+}
+
 export async function gitCommonDir(git: string, cwd: string): Promise<string> {
   const stdout = await run(git, ["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd, LOCAL_TIMEOUT_MS);
   return stdout.trim();

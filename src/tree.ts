@@ -89,6 +89,7 @@ function contextValue({ item, pr }: Worktree): string {
   if (pr?.url) flags.push("pr");
   if (item.branch) flags.push("branch");
   if (isRemovable(item)) flags.push("removable");
+  if (!item.worktree.main && !item.worktree.prunable) flags.push(item.worktree.locked ? "locked" : "unlocked");
   return flags.join(":");
 }
 

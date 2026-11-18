@@ -5,6 +5,7 @@ import {
   gitCommonDir,
   listWorktrees,
   localBranches,
+  lockWorktree,
   openPullRequests,
   PullRequestFinder,
   pruneWorktrees,
@@ -12,6 +13,7 @@ import {
   resolveBinary,
   SwitchResult,
   switchTo,
+  unlockWorktree,
 } from "./worktrunk";
 
 const FOCUS_REFRESH_MIN_GAP_MS = 30_000;
@@ -418,6 +420,41 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  register("worktrunk.lock", async (w) => {
+    const t = tools();
+    if (!t) return;
+    const reason = await vscode.window.showInputBox({
+      title: `Lock ${worktreeLabel(w.item, false)}`,
+      prompt: "A locked worktree cannot be removed or pruned until it is unlocked.",
+      placeHolder: "Reason (optional)",
+    });
+    if (reason === undefined) return;
+    try {
+      await lockWorktree(t.git, t.cwd, w.item.worktree.path, reason.trim());
+    } catch (error) {
+      void vscode.window.showErrorMessage((error as Error).message);
+    }
+    await refresh();
+  });
+  register("worktrunk.unlock", async (w) => {
+    const t = tools();
+    if (!t) return;
+    const reason = w.item.worktree.locked?.reason;
+    if (reason) {
+      const choice = await vscode.window.showWarningMessage(
+        `Unlock ${worktreeLabel(w.item, false)}?`,
+        { modal: true, detail: `It was locked with the reason: ${reason}` },
+        "Unlock",
+      );
+      if (choice !== "Unlock") return;
+    }
+    try {
+      await unlockWorktree(t.git, t.cwd, w.item.worktree.path);
+    } catch (error) {
+      void vscode.window.showErrorMessage((error as Error).message);
+    }
+    await refresh();
+  });
   register("worktrunk.remove", async (w) => {
     const t = tools();
     if (!t) return;
