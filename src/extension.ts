@@ -1,7 +1,17 @@
 import * as vscode from "vscode";
 import { hasUncommitted, isMerged, Worktree, worktreeLabel } from "./format";
 import { isWorktree, WorktreeProvider } from "./tree";
-import { gitCommonDir, listWorktrees, PullRequestFinder, pruneWorktrees, removeWorktree, resolveBinary } from "./worktrunk";
+import {
+  gitCommonDir,
+  listWorktrees,
+  localBranches,
+  PullRequestFinder,
+  pruneWorktrees,
+  removeWorktree,
+  resolveBinary,
+  SwitchResult,
+  switchTo,
+} from "./worktrunk";
 
 const FOCUS_REFRESH_MIN_GAP_MS = 30_000;
 const WATCH_DEBOUNCE_MS = 1_500;
@@ -204,7 +214,109 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  register("worktrunk.openNewWindow", (w) => vscode.commands.executeCommand("vscode.openFolder", uriOf(w), { forceNewWindow: true }));
+  const tools = () => {
+    const cwd = repoRoot();
+    const wt = resolveBinary("wt", config().get<string>("executable", ""));
+    const git = resolveBinary("git", "");
+    if (!cwd || !wt || !git) {
+      void vscode.window.showErrorMessage("Worktrunk needs an open git repository and the `wt` and `git` binaries.");
+      return undefined;
+    }
+    return { cwd, wt, git };
+  };
+
+  const openCreated = async (result: SwitchResult) => {
+    const uri = vscode.Uri.file(result.path);
+    const mode = config().get<string>("openAfterCreate", "ask");
+    const choice =
+      mode === "ask"
+        ? await vscode.window.showInformationMessage(
+            `Worktree for ${result.branch} is ready at ${result.path}.`,
+            "Open in New Window",
+            "Open Here",
+          )
+        : mode;
+    if (choice === "Open in New Window" || choice === "newWindow") {
+      await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true });
+    } else if (choice === "Open Here" || choice === "currentWindow") {
+      await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: false });
+    }
+  };
+
+  const runSwitch = async (title: string, target: string, options: { create?: boolean; base?: string } = {}) => {
+    const t = tools();
+    if (!t) return;
+    try {
+      const result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title },
+        () => switchTo(t.wt, t.cwd, target, options),
+      );
+      log(`${result.action} ${result.branch} at ${result.path}`);
+      void refresh();
+      await openCreated(result);
+    } catch (error) {
+      log((error as Error).message);
+      void vscode.window.showErrorMessage((error as Error).message);
+    }
+  };
+
+  const pickBranch = async (branches: string[]): Promise<{ name: string; isNew: boolean } | undefined> => {
+    const picker = vscode.window.createQuickPick<vscode.QuickPickItem & { branch?: string }>();
+    picker.title = "New worktree";
+    picker.placeholder = "Type a new branch name, or pick an existing branch";
+    const existing = branches.map((b) => ({ label: b, description: "existing branch", branch: b }));
+    const render = () => {
+      const typed = picker.value.trim();
+      const exact = branches.includes(typed);
+      picker.items = typed && !exact ? [{ label: `$(add) Create branch ${typed}`, alwaysShow: true }, ...existing] : existing;
+    };
+    picker.onDidChangeValue(render);
+    render();
+    return new Promise((resolve) => {
+      picker.onDidAccept(() => {
+        const selected = picker.selectedItems[0];
+        const typed = picker.value.trim();
+        resolve(selected?.branch ? { name: selected.branch, isNew: false } : typed ? { name: typed, isNew: true } : undefined);
+        picker.hide();
+      });
+      picker.onDidHide(() => {
+        resolve(undefined);
+        picker.dispose();
+      });
+      picker.show();
+    });
+  };
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("worktrunk.create", async () => {
+      const t = tools();
+      if (!t) return;
+      const taken = new Set(provider.worktrees().map((w) => w.item.branch).filter(Boolean));
+      let branches: string[];
+      try {
+        branches = (await localBranches(t.git, t.cwd)).filter((b) => !taken.has(b));
+      } catch (error) {
+        void vscode.window.showErrorMessage((error as Error).message);
+        return;
+      }
+      const choice = await pickBranch(branches);
+      if (!choice) return;
+      if (!choice.isNew) {
+        await runSwitch(`Creating a worktree for ${choice.name}…`, choice.name);
+        return;
+      }
+      const defaultBranch = provider.current()?.repo.default_branch;
+      const bases = [...new Set([defaultBranch, ...branches, ...taken].filter((b): b is string => !!b))];
+      const base = await vscode.window.showQuickPick(
+        bases.map((b) => ({ label: b, description: b === defaultBranch ? "default branch" : undefined })),
+        { title: `Branch ${choice.name} from`, placeHolder: defaultBranch },
+      );
+      if (!base) return;
+      await runSwitch(`Creating ${choice.name} from ${base.label}…`, choice.name, { create: true, base: base.label });
+    }),
+  );
+
+  register("worktrunk.openNewWindow",(w) => vscode.commands.executeCommand("vscode.openFolder", uriOf(w), { forceNewWindow: true }));
   register("worktrunk.openHere", (w) => vscode.commands.executeCommand("vscode.openFolder", uriOf(w), { forceNewWindow: false }));
   register("worktrunk.openPr", (w) => w.pr?.url && vscode.env.openExternal(vscode.Uri.parse(w.pr.url)));
   register("worktrunk.revealInFinder", (w) => vscode.commands.executeCommand("revealFileInOS", uriOf(w)));

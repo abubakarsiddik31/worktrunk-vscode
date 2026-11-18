@@ -55,6 +55,12 @@
         "category": "Worktrunk"
       },
       {
+        "command": "worktrunk.create",
+        "title": "New Worktree…",
+        "icon": "$(add)",
+        "category": "Worktrunk"
+      },
+      {
         "command": "worktrunk.prune",
         "title": "Prune Missing Worktrees",
         "icon": "$(trash)",
@@ -116,6 +122,11 @@
           "command": "worktrunk.selectRepository",
           "when": "view == worktrunk.worktrees && worktrunk.multiRoot",
           "group": "navigation@0"
+        },
+        {
+          "command": "worktrunk.create",
+          "when": "view == worktrunk.worktrees",
+          "group": "navigation@1"
         },
         {
           "command": "worktrunk.refresh",
@@ -247,6 +258,23 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Show `alice/fix-login` as `fix-login`: drop everything before the first `/` of a branch name."
+        },
+        "worktrunk.openAfterCreate": {
+          "type": "string",
+          "default": "ask",
+          "enum": [
+            "ask",
+            "newWindow",
+            "currentWindow",
+            "none"
+          ],
+          "enumDescriptions": [
+            "Ask each time",
+            "Open it in a new window",
+            "Open it in this window",
+            "Leave it closed"
+          ],
+          "markdownDescription": "What to do with a worktree once it is created."
         }
       }
     }

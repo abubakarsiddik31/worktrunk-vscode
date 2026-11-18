@@ -55,6 +55,8 @@ export interface WorktreeList {
 const LOCAL_TIMEOUT_MS = 30_000;
 const FULL_TIMEOUT_MS = 90_000;
 const GH_TIMEOUT_MS = 15_000;
+const SWITCH_TIMEOUT_MS = 5 * 60_000;
+const MAX_BRANCHES = 500;
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const MAX_PR_LOOKUPS = 40;
 const PR_LOOKUP_CONCURRENCY = 4;
@@ -99,6 +101,34 @@ export async function listWorktrees(wt: string, cwd: string, full: boolean): Pro
   const args = ["list", "--format=json", ...(full ? ["--full"] : [])];
   const stdout = await run(wt, args, cwd, full ? FULL_TIMEOUT_MS : LOCAL_TIMEOUT_MS);
   return JSON.parse(stdout) as WorktreeList;
+}
+
+export interface SwitchResult {
+  action: string;
+  branch: string;
+  path: string;
+}
+
+export async function switchTo(
+  wt: string,
+  cwd: string,
+  target: string,
+  options: { create?: boolean; base?: string } = {},
+): Promise<SwitchResult> {
+  const args = ["switch", target, "--no-cd", "--format=json"];
+  if (options.create) args.push("--create");
+  if (options.base) args.push("--base", options.base);
+  return JSON.parse(await run(wt, args, cwd, SWITCH_TIMEOUT_MS)) as SwitchResult;
+}
+
+export async function localBranches(git: string, cwd: string): Promise<string[]> {
+  const stdout = await run(
+    git,
+    ["for-each-ref", "--sort=-committerdate", `--count=${MAX_BRANCHES}`, "--format=%(refname:short)", "refs/heads"],
+    cwd,
+    LOCAL_TIMEOUT_MS,
+  );
+  return stdout.split("\n").filter(Boolean);
 }
 
 export async function removeWorktree(wt: string, cwd: string, path: string): Promise<void> {
