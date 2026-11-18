@@ -105,6 +105,11 @@ export async function removeWorktree(wt: string, cwd: string, path: string): Pro
   await run(wt, ["remove", path, "--foreground"], cwd, LOCAL_TIMEOUT_MS);
 }
 
+export async function gitCommonDir(git: string, cwd: string): Promise<string> {
+  const stdout = await run(git, ["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd, LOCAL_TIMEOUT_MS);
+  return stdout.trim();
+}
+
 export async function pruneWorktrees(git: string, cwd: string): Promise<void> {
   await run(git, ["worktree", "prune"], cwd, LOCAL_TIMEOUT_MS);
 }

@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
 import { hasUncommitted, isMerged, Worktree, worktreeLabel } from "./format";
 import { isWorktree, WorktreeProvider } from "./tree";
-import { listWorktrees, PullRequestFinder, pruneWorktrees, removeWorktree, resolveBinary } from "./worktrunk";
+import { gitCommonDir, listWorktrees, PullRequestFinder, pruneWorktrees, removeWorktree, resolveBinary } from "./worktrunk";
 
 const FOCUS_REFRESH_MIN_GAP_MS = 30_000;
+const WATCH_DEBOUNCE_MS = 1_500;
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("Worktrunk");
@@ -83,6 +84,49 @@ export function activate(context: vscode.ExtensionContext): void {
     });
     return running;
   };
+
+  let debounce: NodeJS.Timeout | undefined;
+  const refreshSoon = () => {
+    if (debounce) clearTimeout(debounce);
+    debounce = setTimeout(() => void refresh(), WATCH_DEBOUNCE_MS);
+  };
+
+  let watchers: vscode.Disposable[] = [];
+  const watch = async () => {
+    watchers.forEach((w) => w.dispose());
+    watchers = [];
+    const cwd = repoRoot();
+    const git = resolveBinary("git", "");
+    if (!cwd || !git) return;
+    let common: string;
+    try {
+      common = await gitCommonDir(git, cwd);
+    } catch (error) {
+      log(`not watching for worktree changes: ${(error as Error).message}`);
+      return;
+    }
+    const base = vscode.Uri.file(common);
+    const watched: [pattern: string, onChange: boolean][] = [
+      ["worktrees", false],
+      ["worktrees/*", false],
+      ["worktrees/*/locked", false],
+      ["worktrees/*/HEAD", true],
+      ["HEAD", true],
+    ];
+    for (const [pattern, onChange] of watched) {
+      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(base, pattern), false, !onChange, false);
+      watcher.onDidCreate(refreshSoon);
+      watcher.onDidDelete(refreshSoon);
+      watcher.onDidChange(refreshSoon);
+      watchers.push(watcher);
+    }
+  };
+  context.subscriptions.push({
+    dispose: () => {
+      watchers.forEach((w) => w.dispose());
+      if (debounce) clearTimeout(debounce);
+    },
+  });
 
   let timer: NodeJS.Timeout | undefined;
   const schedule = () => {
@@ -192,13 +236,17 @@ export function activate(context: vscode.ExtensionContext): void {
         void refresh();
       }
     }),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => void refresh()),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      void watch();
+      void refresh();
+    }),
     vscode.window.onDidChangeWindowState((state) => {
       if (state.focused && Date.now() - lastRefresh > FOCUS_REFRESH_MIN_GAP_MS) void refresh();
     }),
   );
 
   schedule();
+  void watch();
   void refresh();
 }
 
