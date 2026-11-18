@@ -69,6 +69,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const cwd = repoRoot();
     if (!cwd) {
       log("no folder is open");
+      provider.setUnavailable(true);
       return;
     }
     const wt = resolveWorktrunk(config().get<string>("executable", ""));
