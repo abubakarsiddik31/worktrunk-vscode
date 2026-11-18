@@ -5,6 +5,7 @@ import {
   gitCommonDir,
   listWorktrees,
   localBranches,
+  openPullRequests,
   PullRequestFinder,
   pruneWorktrees,
   removeWorktree,
@@ -316,7 +317,49 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  register("worktrunk.openNewWindow",(w) => vscode.commands.executeCommand("vscode.openFolder", uriOf(w), { forceNewWindow: true }));
+  context.subscriptions.push(
+    vscode.commands.registerCommand("worktrunk.checkoutPr", async () => {
+      const t = tools();
+      const gh = resolveBinary("gh", "");
+      if (!t) return;
+      if (!gh) {
+        void vscode.window.showErrorMessage("Checking out a pull request needs the GitHub CLI (`gh`), logged in.");
+        return;
+      }
+      const checkedOut = new Map(
+        provider
+          .worktrees()
+          .filter((w) => w.pr && w.item.branch)
+          .map((w) => [w.pr!.number, w.item.worktree.path]),
+      );
+      const pulls = Promise.resolve(
+        vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: "Loading pull requests…" }, () =>
+          openPullRequests(gh, t.cwd),
+        ),
+      );
+      pulls.catch((error: Error) => {
+        log(error.message);
+        void vscode.window.showErrorMessage(error.message);
+      });
+      const picked = await vscode.window.showQuickPick(
+        pulls.then(
+          (list) =>
+            list.map((pr) => ({
+              label: `#${pr.number} ${pr.title}`,
+              description: [pr.isDraft && "draft", pr.author.login, pr.headRefName].filter(Boolean).join(" · "),
+              detail: checkedOut.has(pr.number) ? `$(check) already in ${checkedOut.get(pr.number)}` : undefined,
+              pr,
+            })),
+          () => [],
+        ),
+        { title: "Check out a pull request into its own worktree", matchOnDescription: true },
+      );
+      if (!picked) return;
+      await runSwitch(`Checking out #${picked.pr.number}…`, `pr:${picked.pr.number}`);
+    }),
+  );
+
+  register("worktrunk.openNewWindow", (w) => vscode.commands.executeCommand("vscode.openFolder", uriOf(w), { forceNewWindow: true }));
   register("worktrunk.openHere", (w) => vscode.commands.executeCommand("vscode.openFolder", uriOf(w), { forceNewWindow: false }));
   register("worktrunk.openPr", (w) => w.pr?.url && vscode.env.openExternal(vscode.Uri.parse(w.pr.url)));
   register("worktrunk.revealInFinder", (w) => vscode.commands.executeCommand("revealFileInOS", uriOf(w)));

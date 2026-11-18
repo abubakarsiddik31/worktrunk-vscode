@@ -57,6 +57,7 @@ const FULL_TIMEOUT_MS = 90_000;
 const GH_TIMEOUT_MS = 15_000;
 const SWITCH_TIMEOUT_MS = 5 * 60_000;
 const MAX_BRANCHES = 500;
+const MAX_OPEN_PRS = 100;
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const MAX_PR_LOOKUPS = 40;
 const PR_LOOKUP_CONCURRENCY = 4;
@@ -129,6 +130,24 @@ export async function localBranches(git: string, cwd: string): Promise<string[]>
     LOCAL_TIMEOUT_MS,
   );
   return stdout.split("\n").filter(Boolean);
+}
+
+export interface OpenPullRequest {
+  number: number;
+  title: string;
+  headRefName: string;
+  isDraft: boolean;
+  author: { login: string };
+}
+
+export async function openPullRequests(gh: string, cwd: string): Promise<OpenPullRequest[]> {
+  const stdout = await run(
+    gh,
+    ["pr", "list", "--state", "open", "--limit", String(MAX_OPEN_PRS), "--json", "number,title,headRefName,isDraft,author"],
+    cwd,
+    GH_TIMEOUT_MS,
+  );
+  return JSON.parse(stdout) as OpenPullRequest[];
 }
 
 export async function removeWorktree(wt: string, cwd: string, path: string): Promise<void> {

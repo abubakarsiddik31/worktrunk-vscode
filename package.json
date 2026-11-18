@@ -61,6 +61,12 @@
         "category": "Worktrunk"
       },
       {
+        "command": "worktrunk.checkoutPr",
+        "title": "Check Out Pull Request…",
+        "icon": "$(git-pull-request)",
+        "category": "Worktrunk"
+      },
+      {
         "command": "worktrunk.prune",
         "title": "Prune Missing Worktrees",
         "icon": "$(trash)",
@@ -127,6 +133,11 @@
           "command": "worktrunk.create",
           "when": "view == worktrunk.worktrees",
           "group": "navigation@1"
+        },
+        {
+          "command": "worktrunk.checkoutPr",
+          "when": "view == worktrunk.worktrees",
+          "group": "navigation@2"
         },
         {
           "command": "worktrunk.refresh",
