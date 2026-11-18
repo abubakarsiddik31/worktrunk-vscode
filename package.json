@@ -6,6 +6,11 @@
   "publisher": "abubakarsiddik31",
   "private": true,
   "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#14532d",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
