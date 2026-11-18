@@ -370,34 +370,41 @@ export function activate(context: vscode.ExtensionContext): void {
     terminal.show();
   });
   register("worktrunk.remove", async (w) => {
-    const cwd = repoRoot();
-    const wt = resolveBinary("wt", config().get<string>("executable", ""));
-    if (!cwd || !wt) return;
-    if (hasUncommitted(w.item)) {
-      void vscode.window.showWarningMessage(
-        `${worktreeLabel(w.item, false)} has uncommitted changes. Commit, stash or discard them first; nothing was removed.`,
-      );
-      return;
+    const t = tools();
+    if (!t) return;
+    const name = worktreeLabel(w.item, false);
+    const dirty = hasUncommitted(w.item);
+    const branch = w.item.branch;
+    const unmerged = !!branch && !isMerged(w.item);
+
+    const REMOVE = "Remove Worktree";
+    const DISCARD = "Discard Changes and Remove";
+    const WITH_BRANCH = "Remove Worktree and Branch";
+    const detail = [`Deletes the folder ${w.item.worktree.path}.`];
+    if (dirty) {
+      detail.push("It has uncommitted changes. Discarding them keeps a backup under refs/wt-backup/ that Worktrunk can restore.");
     }
-    const merged = isMerged(w.item);
-    const choice = await vscode.window.showWarningMessage(
-      `Remove worktree ${worktreeLabel(w.item, false)}?`,
-      {
-        modal: true,
-        detail: [
-          `Deletes the folder ${w.item.worktree.path}.`,
-          w.item.branch
-            ? merged
-              ? `Its branch ${w.item.branch} is merged and will be deleted too.`
-              : `Its branch ${w.item.branch} is not merged and will be kept.`
-            : `It is a detached checkout at ${w.item.head.short_sha}; no branch is touched.`,
-        ].join("\n"),
-      },
-      "Remove",
-    );
-    if (choice !== "Remove") return;
+    if (!branch) detail.push(`It is a detached checkout at ${w.item.head.short_sha}; no branch is touched.`);
+    else if (unmerged && dirty) detail.push(`Its branch ${branch} is not merged and is kept.`);
+    else if (unmerged) detail.push(`Its branch ${branch} is not merged. Keep it, or delete it with its commits.`);
+    else detail.push(`Its branch ${branch} is merged and is deleted too.`);
+
+    const buttons = dirty ? [DISCARD] : unmerged ? [REMOVE, WITH_BRANCH] : [REMOVE];
+    const choice = await vscode.window.showWarningMessage(`Remove worktree ${name}?`, { modal: true, detail: detail.join("\n\n") }, ...buttons);
+    if (!choice) return;
+    if (choice === WITH_BRANCH) {
+      const confirm = await vscode.window.showWarningMessage(
+        `Delete branch ${branch} and its unmerged commits?`,
+        { modal: true, detail: "Commits only on this branch become unreachable unless they are pushed somewhere." },
+        "Delete Branch",
+      );
+      if (confirm !== "Delete Branch") return;
+    }
     try {
-      await removeWorktree(wt, cwd, w.item.worktree.path);
+      await removeWorktree(t.wt, t.cwd, w.item.worktree.path, {
+        discardChanges: choice === DISCARD,
+        deleteUnmergedBranch: choice === WITH_BRANCH,
+      });
       log(`removed ${w.item.worktree.path}`);
     } catch (error) {
       log((error as Error).message);

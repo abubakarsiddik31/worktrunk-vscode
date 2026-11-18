@@ -150,8 +150,16 @@ export async function openPullRequests(gh: string, cwd: string): Promise<OpenPul
   return JSON.parse(stdout) as OpenPullRequest[];
 }
 
-export async function removeWorktree(wt: string, cwd: string, path: string): Promise<void> {
-  await run(wt, ["remove", path, "--foreground"], cwd, LOCAL_TIMEOUT_MS);
+export interface RemoveOptions {
+  discardChanges?: boolean;
+  deleteUnmergedBranch?: boolean;
+}
+
+export async function removeWorktree(wt: string, cwd: string, path: string, options: RemoveOptions = {}): Promise<void> {
+  const args = ["remove", path, "--foreground"];
+  if (options.discardChanges) args.push("--force");
+  if (options.deleteUnmergedBranch) args.push("--force-delete");
+  await run(wt, args, cwd, LOCAL_TIMEOUT_MS);
 }
 
 export async function gitCommonDir(git: string, cwd: string): Promise<string> {
