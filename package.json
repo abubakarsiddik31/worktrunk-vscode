@@ -1,0 +1,124 @@
+{
+  "name": "worktrunk-vscode",
+  "displayName": "Worktrunk Worktrees",
+  "description": "Every git worktree of the open repo, with its PR, CI and merge state, powered by the Worktrunk CLI.",
+  "version": "0.1.0",
+  "publisher": "abubakarsiddik31",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "workspaceContains:.git"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "worktrunk",
+          "title": "Worktrees",
+          "icon": "media/worktrees.svg"
+        }
+      ]
+    },
+    "views": {
+      "worktrunk": [
+        {
+          "id": "worktrunk.worktrees",
+          "name": "Worktrees",
+          "contextualTitle": "Worktrunk"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "worktrunk.worktrees",
+        "contents": "Open a folder inside a git repository to see its worktrees."
+      }
+    ],
+    "commands": [
+      { "command": "worktrunk.refresh", "title": "Refresh", "icon": "$(refresh)", "category": "Worktrunk" },
+      { "command": "worktrunk.prune", "title": "Prune Missing Worktrees", "icon": "$(trash)", "category": "Worktrunk" },
+      { "command": "worktrunk.showInTerminal", "title": "Show wt list in Terminal", "icon": "$(terminal)", "category": "Worktrunk" },
+      { "command": "worktrunk.openNewWindow", "title": "Open in New Window", "icon": "$(empty-window)", "category": "Worktrunk" },
+      { "command": "worktrunk.openHere", "title": "Open in This Window", "category": "Worktrunk" },
+      { "command": "worktrunk.openPr", "title": "Open Pull Request", "icon": "$(github)", "category": "Worktrunk" },
+      { "command": "worktrunk.openTerminal", "title": "Open Terminal Here", "icon": "$(terminal)", "category": "Worktrunk" },
+      { "command": "worktrunk.revealInFinder", "title": "Reveal in File Manager", "category": "Worktrunk" },
+      { "command": "worktrunk.copyPath", "title": "Copy Path", "category": "Worktrunk" },
+      { "command": "worktrunk.copyBranch", "title": "Copy Branch Name", "category": "Worktrunk" },
+      { "command": "worktrunk.remove", "title": "Remove Worktree…", "category": "Worktrunk" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "worktrunk.refresh", "when": "view == worktrunk.worktrees", "group": "navigation@1" },
+        { "command": "worktrunk.showInTerminal", "when": "view == worktrunk.worktrees", "group": "navigation@2" },
+        { "command": "worktrunk.prune", "when": "view == worktrunk.worktrees", "group": "1_manage" }
+      ],
+      "view/item/context": [
+        { "command": "worktrunk.openPr", "when": "view == worktrunk.worktrees && viewItem =~ /:pr\\b/", "group": "inline@1" },
+        { "command": "worktrunk.openNewWindow", "when": "view == worktrunk.worktrees && viewItem =~ /:present\\b/", "group": "inline@2" },
+        { "command": "worktrunk.openNewWindow", "when": "view == worktrunk.worktrees && viewItem =~ /:present\\b/", "group": "1_open@1" },
+        { "command": "worktrunk.openHere", "when": "view == worktrunk.worktrees && viewItem =~ /:present\\b/", "group": "1_open@2" },
+        { "command": "worktrunk.openTerminal", "when": "view == worktrunk.worktrees && viewItem =~ /:present\\b/", "group": "1_open@3" },
+        { "command": "worktrunk.revealInFinder", "when": "view == worktrunk.worktrees && viewItem =~ /:present\\b/", "group": "1_open@4" },
+        { "command": "worktrunk.openPr", "when": "view == worktrunk.worktrees && viewItem =~ /:pr\\b/", "group": "2_pr@1" },
+        { "command": "worktrunk.copyPath", "when": "view == worktrunk.worktrees && viewItem =~ /^worktree\\b/", "group": "3_copy@1" },
+        { "command": "worktrunk.copyBranch", "when": "view == worktrunk.worktrees && viewItem =~ /:branch\\b/", "group": "3_copy@2" },
+        { "command": "worktrunk.remove", "when": "view == worktrunk.worktrees && viewItem =~ /:removable\\b/", "group": "9_remove@1" }
+      ],
+      "commandPalette": [
+        { "command": "worktrunk.openNewWindow", "when": "false" },
+        { "command": "worktrunk.openHere", "when": "false" },
+        { "command": "worktrunk.openPr", "when": "false" },
+        { "command": "worktrunk.openTerminal", "when": "false" },
+        { "command": "worktrunk.revealInFinder", "when": "false" },
+        { "command": "worktrunk.copyPath", "when": "false" },
+        { "command": "worktrunk.copyBranch", "when": "false" },
+        { "command": "worktrunk.remove", "when": "false" }
+      ]
+    },
+    "configuration": {
+      "title": "Worktrunk",
+      "properties": {
+        "worktrunk.executable": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `wt` binary. Empty looks in Homebrew, Cargo and `PATH`."
+        },
+        "worktrunk.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 0,
+          "markdownDescription": "Refresh PR and CI status this often. `0` refreshes only on demand and when the window regains focus."
+        },
+        "worktrunk.findPrsForOtherWorktrees": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Use `gh` to find the PR behind worktrees Worktrunk shows none for — detached review checkouts and merged branches."
+        },
+        "worktrunk.hideBranchPrefix": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show `alice/fix-login` as `fix-login`: drop everything before the first `/` of a branch name."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "package": "vsce package --no-dependencies --allow-missing-repository --skip-license -o worktrunk-vscode.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "1.95.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.6.3"
+  }
+}
