@@ -1,32 +1,18 @@
-import { basename } from "node:path";
 import * as vscode from "vscode";
-import type { PullRequest, WorktreeItem, WorktreeList } from "./worktrunk";
-
-type GroupKind = "active" | "review" | "merged" | "prunable";
-
-const GROUPS: { kind: GroupKind; title: string; expanded: boolean }[] = [
-  { kind: "active", title: "Active", expanded: true },
-  { kind: "review", title: "Detached checkouts", expanded: true },
-  { kind: "merged", title: "Merged — safe to remove", expanded: false },
-  { kind: "prunable", title: "Missing folders — prunable", expanded: false },
-];
-
-const STATE_TEXT: Record<string, string> = {
-  is_main: "the main worktree",
-  orphan: "shares no history with the default branch",
-  empty: "same commit as the default branch and clean — safe to remove",
-  integrated: "already merged into the default branch — safe to remove",
-  would_conflict: "would conflict if merged into the default branch",
-  same_commit: "same commit as the default branch, with uncommitted changes",
-  diverged: "both ahead of and behind the default branch",
-  ahead: "ahead of the default branch",
-  behind: "behind the default branch",
-};
-
-export interface Worktree {
-  item: WorktreeItem;
-  pr: PullRequest | null;
-}
+import {
+  age,
+  describe,
+  GroupKind,
+  groupOf,
+  GROUPS,
+  hasUncommitted,
+  isRemovable,
+  STATE_TEXT,
+  Worktree,
+  worktreeLabel,
+  withPr,
+} from "./format";
+import type { PullRequest, WorktreeList } from "./worktrunk";
 
 export class GroupNode {
   constructor(readonly kind: GroupKind, readonly title: string, readonly expanded: boolean, readonly worktrees: Worktree[]) {}
@@ -40,75 +26,6 @@ export type Node = GroupNode | Worktree | MessageNode;
 
 export function isWorktree(node: unknown): node is Worktree {
   return typeof node === "object" && node !== null && "item" in node;
-}
-
-function isMerged(item: WorktreeItem): boolean {
-  return !item.worktree.main && (item.display.state === "integrated" || item.display.state === "empty");
-}
-
-function groupOf(item: WorktreeItem): GroupKind {
-  if (item.worktree.prunable) {
-    return "prunable";
-  }
-  if (isMerged(item)) {
-    return "merged";
-  }
-  return item.worktree.detached ? "review" : "active";
-}
-
-function hasUncommitted(item: WorktreeItem): boolean {
-  const c = item.worktree.changes;
-  return !!c && (c.staged || c.modified || c.untracked || c.conflicted);
-}
-
-function compact(n: number): string {
-  return n >= 1000 ? `${Math.round(n / 100) / 10}K`.replace(".0K", "K") : String(n);
-}
-
-function age(iso: string | undefined): string {
-  if (!iso) {
-    return "";
-  }
-  const minutes = Math.max(0, (Date.now() - Date.parse(iso)) / 60_000);
-  if (minutes < 60) return `${Math.round(minutes)}m`;
-  if (minutes < 60 * 24) return `${Math.round(minutes / 60)}h`;
-  if (minutes < 60 * 24 * 14) return `${Math.round(minutes / 1440)}d`;
-  if (minutes < 60 * 24 * 60) return `${Math.round(minutes / 10080)}w`;
-  return `${Math.round(minutes / 43200)}mo`;
-}
-
-export function worktreeLabel(item: WorktreeItem, hidePrefix: boolean): string {
-  if (!item.branch) {
-    return basename(item.worktree.path);
-  }
-  const slash = item.branch.indexOf("/");
-  return hidePrefix && slash > 0 ? item.branch.slice(slash + 1) : item.branch;
-}
-
-function prBadge(pr: PullRequest): string {
-  return pr.state && pr.state !== "open" ? `#${pr.number} ${pr.state}` : `#${pr.number}`;
-}
-
-function description({ item, pr }: Worktree): string {
-  const parts: string[] = [];
-  if (pr) parts.push(prBadge(pr));
-  if (item.worktree.detached && !item.worktree.prunable) parts.push(`@${item.head.short_sha}`);
-  const changes = item.worktree.changes;
-  if (changes && hasUncommitted(item)) {
-    const { added, deleted } = changes.diff;
-    parts.push(added || deleted ? `✎ +${compact(added)} −${compact(deleted)}` : "✎");
-  }
-  const main = item.default_branch;
-  if (main && !item.worktree.main && (main.ahead || main.behind)) {
-    parts.push([main.ahead && `↑${main.ahead}`, main.behind && `↓${main.behind}`].filter(Boolean).join(" "));
-  }
-  const up = item.upstream;
-  if (up && (up.ahead || up.behind)) {
-    parts.push([up.ahead && `⇡${up.ahead}`, up.behind && `⇣${up.behind}`].filter(Boolean).join(" "));
-  }
-  const when = age(item.head?.committed_at);
-  if (when) parts.push(when);
-  return parts.join("  ");
 }
 
 function icon({ item, pr }: Worktree): vscode.ThemeIcon {
@@ -127,9 +44,12 @@ function icon({ item, pr }: Worktree): vscode.ThemeIcon {
   return new vscode.ThemeIcon("git-branch");
 }
 
+function escape(text: string): string {
+  return text.replace(/[\\`*_{}[\]()#+\-.!|<>]/g, "\\$&");
+}
+
 function tooltip({ item, pr }: Worktree, defaultBranch: string): vscode.MarkdownString {
   const md = new vscode.MarkdownString(undefined, true);
-  md.isTrusted = false;
   const name = item.branch ?? `detached at ${item.head.short_sha}`;
   md.appendMarkdown(`**${escape(name)}**${item.worktree.current ? " — this window" : ""}\n\n`);
   md.appendMarkdown(`$(folder) \`${item.worktree.path}\`\n\n`);
@@ -139,16 +59,16 @@ function tooltip({ item, pr }: Worktree, defaultBranch: string): vscode.Markdown
   if (pr) {
     const title = pr.title ? ` ${escape(pr.title)}` : "";
     const facts = [
-      pr.state && pr.state !== "open" ? pr.state : "open",
+      pr.state ?? "open",
       pr.review && `review ${pr.review}`,
       item.checks?.status && `CI ${item.checks.status}${item.checks.stale ? " (stale)" : ""}`,
     ].filter(Boolean);
     md.appendMarkdown(`$(git-pull-request) [#${pr.number}](${pr.url})${title} — ${facts.join(", ")}\n\n`);
   }
   const state = item.display.state;
-  const main = item.default_branch;
+  const base = item.default_branch;
   const relation: string[] = [];
-  if (main && !item.worktree.main) relation.push(`${main.ahead} ahead, ${main.behind} behind ${defaultBranch}`);
+  if (base && !item.worktree.main) relation.push(`${base.ahead} ahead, ${base.behind} behind ${defaultBranch}`);
   if (state && STATE_TEXT[state]) relation.push(STATE_TEXT[state]);
   if (relation.length) md.appendMarkdown(`$(git-compare) ${relation.join(" · ")}\n\n`);
   const changes = item.worktree.changes;
@@ -163,16 +83,12 @@ function tooltip({ item, pr }: Worktree, defaultBranch: string): vscode.Markdown
   return md;
 }
 
-function escape(text: string): string {
-  return text.replace(/[\\`*_{}[\]()#+\-.!|<>]/g, "\\$&");
-}
-
 function contextValue({ item, pr }: Worktree): string {
   const flags = ["worktree"];
   if (!item.worktree.prunable) flags.push("present");
   if (pr?.url) flags.push("pr");
   if (item.branch) flags.push("branch");
-  if (!item.worktree.main && !item.worktree.locked && !item.worktree.prunable && !item.worktree.current) flags.push("removable");
+  if (isRemovable(item)) flags.push("removable");
   return flags.join(":");
 }
 
@@ -185,7 +101,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<Node> {
   private extraPr: (sha: string) => PullRequest | null | undefined = () => undefined;
   private hidePrefix = true;
 
-  setList(list: WorktreeList): void {
+  setList(list: WorktreeList | undefined): void {
     this.list = list;
     this.error = undefined;
     this.changed.fire();
@@ -214,10 +130,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<Node> {
   }
 
   worktrees(): Worktree[] {
-    return (this.list?.items ?? []).map((item) => ({
-      item,
-      pr: item.pr?.url ? { ...item.pr, state: item.pr.state ?? "open" } : this.extraPr(item.head?.sha) ?? null,
-    }));
+    return (this.list?.items ?? []).map((item) => withPr(item, this.extraPr));
   }
 
   getChildren(node?: Node): Node[] {
@@ -276,7 +189,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<Node> {
       vscode.TreeItemCollapsibleState.None,
     );
     item.id = `worktree:${node.item.worktree.path}`;
-    item.description = description(node);
+    item.description = describe(node);
     item.iconPath = icon(node);
     item.tooltip = tooltip(node, this.list?.repo.default_branch ?? "main");
     item.contextValue = contextValue(node);

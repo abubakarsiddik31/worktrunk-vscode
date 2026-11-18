@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import { isWorktree, Worktree, worktreeLabel, WorktreeProvider } from "./tree";
+import { hasUncommitted, isMerged, Worktree, worktreeLabel } from "./format";
+import { isWorktree, WorktreeProvider } from "./tree";
 import { listWorktrees, PullRequestFinder, pruneWorktrees, removeWorktree, resolveBinary } from "./worktrunk";
 
 const FOCUS_REFRESH_MIN_GAP_MS = 30_000;
@@ -26,9 +27,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const worktrees = provider.worktrees();
     const openPrs = worktrees.filter((w) => w.item.pr?.url).length;
     const failing = worktrees.filter((w) => w.item.checks?.status === "failed").length;
-    const removable = worktrees.filter(
-      (w) => !w.item.worktree.main && (w.item.display.state === "integrated" || w.item.display.state === "empty"),
-    ).length;
+    const removable = worktrees.filter((w) => isMerged(w.item)).length;
     view.description = [`${openPrs} open PR${openPrs === 1 ? "" : "s"}`, removable && `${removable} merged`]
       .filter(Boolean)
       .join(" · ");
@@ -150,14 +149,13 @@ export function activate(context: vscode.ExtensionContext): void {
     const cwd = repoRoot();
     const wt = resolveBinary("wt", config().get<string>("executable", ""));
     if (!cwd || !wt) return;
-    const changes = w.item.worktree.changes;
-    if (changes && (changes.staged || changes.modified || changes.untracked || changes.conflicted)) {
+    if (hasUncommitted(w.item)) {
       void vscode.window.showWarningMessage(
         `${worktreeLabel(w.item, false)} has uncommitted changes. Commit, stash or discard them first; nothing was removed.`,
       );
       return;
     }
-    const merged = w.item.display.state === "integrated" || w.item.display.state === "empty";
+    const merged = isMerged(w.item);
     const choice = await vscode.window.showWarningMessage(
       `Remove worktree ${worktreeLabel(w.item, false)}?`,
       {
