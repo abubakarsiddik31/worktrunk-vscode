@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { hasUncommitted, isMerged, isRemovable, Worktree, worktreeLabel } from "./format";
+import { PrStatusBar } from "./statusBar";
 import { isWorktree, WorktreeProvider } from "./tree";
 import {
   gitCommonDir,
@@ -23,7 +24,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("Worktrunk");
   const provider = new WorktreeProvider();
   const view = vscode.window.createTreeView("worktrunk.worktrees", { treeDataProvider: provider, showCollapseAll: true });
-  context.subscriptions.push(output, view);
+  const statusBar = new PrStatusBar();
+  context.subscriptions.push(output, view, statusBar);
 
   const config = () => vscode.workspace.getConfiguration("worktrunk");
   const REPO_KEY = "worktrunk.repository";
@@ -57,6 +59,7 @@ export function activate(context: vscode.ExtensionContext): void {
       .filter(Boolean)
       .join(" · ");
     view.badge = failing ? { value: failing, tooltip: `${failing} worktree PR${failing === 1 ? "" : "s"} failing CI` } : undefined;
+    statusBar.update(worktrees, config().get<boolean>("statusBar", true));
   };
 
   const load = async () => {
@@ -85,6 +88,7 @@ export function activate(context: vscode.ExtensionContext): void {
           .map((item) => item.head.sha);
         await finder.findAll(forge.owner, forge.name, shas, cwd, (error) => log(error.message));
         provider.refreshView();
+        summarize();
       }
     } catch (error) {
       const message = (error as Error).message;
@@ -173,6 +177,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("worktrunk.refresh", () => refresh()),
+    vscode.commands.registerCommand("worktrunk.openCurrentPr", () => {
+      const url = statusBar.currentUrl;
+      return url && vscode.env.openExternal(vscode.Uri.parse(url));
+    }),
     vscode.commands.registerCommand("worktrunk.selectRepository", async () => {
       const folders = vscode.workspace.workspaceFolders ?? [];
       const current = repoRoot();
@@ -502,6 +510,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("worktrunk.refreshIntervalSeconds")) schedule();
+      if (event.affectsConfiguration("worktrunk.statusBar")) summarize();
       if (event.affectsConfiguration("worktrunk.hideBranchPrefix")) {
         provider.setHidePrefix(config().get<boolean>("hideBranchPrefix", true));
       }

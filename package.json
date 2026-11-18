@@ -73,6 +73,11 @@
         "category": "Worktrunk"
       },
       {
+        "command": "worktrunk.openCurrentPr",
+        "title": "Open This Worktree's Pull Request",
+        "category": "Worktrunk"
+      },
+      {
         "command": "worktrunk.prune",
         "title": "Prune Missing Worktrees",
         "icon": "$(trash)",
@@ -330,6 +335,11 @@
             "Leave it closed"
           ],
           "markdownDescription": "What to do with a worktree once it is created."
+        },
+        "worktrunk.statusBar": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the pull request and CI state of the worktree this window has open in the status bar."
         }
       }
     }
