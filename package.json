@@ -2,7 +2,7 @@
   "name": "worktrunk-vscode",
   "displayName": "Worktrunk Worktrees",
   "description": "Every git worktree in one sidebar, with its pull request, CI and merge state. A front end for the Worktrunk CLI.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "abubakarsiddik31",
   "author": {
     "name": "Abu Bakar Siddik",

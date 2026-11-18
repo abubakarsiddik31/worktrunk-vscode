@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Log every refresh to Output › Worktrunk, so a slow refresh can be told from a stuck one.
+- Show the Open Folder prompt instead of loading forever when no folder is open.
+
 ## 0.1.0
 
 First release.
