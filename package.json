@@ -49,6 +49,12 @@
         "category": "Worktrunk"
       },
       {
+        "command": "worktrunk.selectRepository",
+        "title": "Select Repository",
+        "icon": "$(repo)",
+        "category": "Worktrunk"
+      },
+      {
         "command": "worktrunk.prune",
         "title": "Prune Missing Worktrees",
         "icon": "$(trash)",
@@ -106,6 +112,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "worktrunk.selectRepository",
+          "when": "view == worktrunk.worktrees && worktrunk.multiRoot",
+          "group": "navigation@0"
+        },
         {
           "command": "worktrunk.refresh",
           "when": "view == worktrunk.worktrees",
@@ -206,6 +217,10 @@
         {
           "command": "worktrunk.remove",
           "when": "false"
+        },
+        {
+          "command": "worktrunk.selectRepository",
+          "when": "worktrunk.multiRoot"
         }
       ]
     },

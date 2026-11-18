@@ -13,7 +13,18 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(output, view);
 
   const config = () => vscode.workspace.getConfiguration("worktrunk");
-  const repoRoot = () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const REPO_KEY = "worktrunk.repository";
+  const repoRoot = () => {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const chosen = context.workspaceState.get<string>(REPO_KEY);
+    return (folders.find((f) => f.uri.fsPath === chosen) ?? folders[0])?.uri.fsPath;
+  };
+  const showRepoInTitle = () => {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    void vscode.commands.executeCommand("setContext", "worktrunk.multiRoot", folders.length > 1);
+    const root = repoRoot();
+    view.title = folders.length > 1 && root ? `Worktrees · ${folders.find((f) => f.uri.fsPath === root)?.name}` : "Worktrees";
+  };
   let finder: PullRequestFinder | undefined;
   let lastRefresh = 0;
   let running: Promise<void> | undefined;
@@ -149,6 +160,20 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("worktrunk.refresh", () => refresh()),
+    vscode.commands.registerCommand("worktrunk.selectRepository", async () => {
+      const folders = vscode.workspace.workspaceFolders ?? [];
+      const current = repoRoot();
+      const picked = await vscode.window.showQuickPick(
+        folders.map((f) => ({ label: f.name, description: f.uri.fsPath === current ? "shown" : undefined, detail: f.uri.fsPath })),
+        { title: "Show the worktrees of which repository?" },
+      );
+      if (!picked?.detail || picked.detail === current) return;
+      await context.workspaceState.update(REPO_KEY, picked.detail);
+      showRepoInTitle();
+      provider.setList(undefined);
+      void watch();
+      await refresh();
+    }),
     vscode.commands.registerCommand("worktrunk.showInTerminal", () => {
       const terminal = vscode.window.createTerminal({ name: "wt list", cwd: repoRoot() });
       terminal.show();
@@ -237,6 +262,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      showRepoInTitle();
       void watch();
       void refresh();
     }),
@@ -245,6 +271,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  showRepoInTitle();
   schedule();
   void watch();
   void refresh();
