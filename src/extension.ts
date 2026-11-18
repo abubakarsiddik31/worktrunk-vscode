@@ -4,6 +4,7 @@ import { hasUncommitted, isMerged, isRemovable, Worktree, worktreeLabel } from "
 import { PrStatusBar } from "./statusBar";
 import { isWorktree, WorktreeProvider } from "./tree";
 import {
+  errorForLog,
   gitCommonDir,
   listWorktrees,
   localBranches,
@@ -89,14 +90,13 @@ export function activate(context: vscode.ExtensionContext): void {
         const shas = full.items
           .filter((item) => !item.pr?.url && !item.worktree.main && !item.worktree.prunable && item.head?.sha)
           .map((item) => item.head.sha);
-        await finder.findAll(forge.owner, forge.name, shas, cwd, (error) => log(error.message));
+        await finder.findAll(forge.owner, forge.name, shas, cwd, (error) => log(errorForLog(error)));
         provider.refreshView();
         summarize();
       }
     } catch (error) {
-      const message = (error as Error).message;
-      log(message);
-      provider.setError(message);
+      log(errorForLog(error));
+      provider.setError((error as Error).message);
     }
   };
 
@@ -133,7 +133,7 @@ export function activate(context: vscode.ExtensionContext): void {
     try {
       common = await gitCommonDir(git, cwd);
     } catch (error) {
-      log(`not watching for worktree changes: ${(error as Error).message}`);
+      log(`not watching for worktree changes: ${errorForLog(error)}`);
       return;
     }
     const base = vscode.Uri.file(common);
@@ -232,7 +232,7 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         await pruneWorktrees(git, cwd);
       } catch (error) {
-        log((error as Error).message);
+        log(errorForLog(error));
         void vscode.window.showErrorMessage((error as Error).message);
       }
       await refresh();
@@ -280,7 +280,7 @@ export function activate(context: vscode.ExtensionContext): void {
       void refresh();
       await openCreated(result);
     } catch (error) {
-      log((error as Error).message);
+      log(errorForLog(error));
       void vscode.window.showErrorMessage((error as Error).message);
     }
   };
@@ -362,7 +362,7 @@ export function activate(context: vscode.ExtensionContext): void {
         ),
       );
       pulls.catch((error: Error) => {
-        log(error.message);
+        log(errorForLog(error));
         void vscode.window.showErrorMessage(error.message);
       });
       const picked = await vscode.window.showQuickPick(
@@ -429,7 +429,7 @@ export function activate(context: vscode.ExtensionContext): void {
               await removeWorktree(t.wt, t.cwd, w.item.worktree.path);
               log(`removed ${w.item.worktree.path}`);
             } catch (error) {
-              log((error as Error).message);
+              log(errorForLog(error));
               failures.push(worktreeLabel(w.item, false));
             }
           }
@@ -515,7 +515,7 @@ export function activate(context: vscode.ExtensionContext): void {
       });
       log(`removed ${w.item.worktree.path}`);
     } catch (error) {
-      log((error as Error).message);
+      log(errorForLog(error));
       void vscode.window.showErrorMessage((error as Error).message);
     }
     await refresh();

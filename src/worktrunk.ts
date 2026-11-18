@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
+import { basename, delimiter, join } from "node:path";
 
 export type ChecksStatus = "passed" | "failed" | "running" | "pending" | "skipped" | "unknown" | string;
 
@@ -99,17 +99,22 @@ export function resolveWorktrunk(configured: string): string | undefined {
 }
 
 export class CommandError extends Error {
-  constructor(message: string, readonly stderr: string) {
+  constructor(message: string, readonly command: string, readonly stderr: string) {
     super(message);
   }
+}
+
+export function errorForLog(error: unknown): string {
+  return error instanceof CommandError ? `${error.command}: ${error.message}` : (error as Error).message;
 }
 
 function run(binary: string, args: string[], cwd: string, timeout: number): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(binary, args, { cwd, timeout, maxBuffer: MAX_OUTPUT_BYTES, env: childEnv }, (error, stdout, stderr) => {
       if (error) {
-        const detail = stderr.trim() || error.message;
-        reject(new CommandError(`${binary} ${args.join(" ")} failed: ${detail}`, stderr));
+        const command = [basename(binary), ...args].join(" ");
+        const detail = error.killed ? `${command} took longer than ${timeout / 1000}s and was stopped.` : stderr.trim() || error.message;
+        reject(new CommandError(detail, command, stderr));
         return;
       }
       resolve(stdout);
