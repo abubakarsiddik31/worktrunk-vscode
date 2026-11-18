@@ -38,7 +38,13 @@
     "viewsWelcome": [
       {
         "view": "worktrunk.worktrees",
-        "contents": "Open a folder inside a git repository to see its worktrees."
+        "when": "worktrunk.cliMissing",
+        "contents": "This view needs the Worktrunk CLI, which was not found.\n[Install Worktrunk](https://worktrunk.dev/#install)\nmacOS and Linux: `brew install worktrunk`. Windows: `winget install max-sixty.worktrunk`.\nAlready installed somewhere unusual?\n[Choose the wt Binary…](command:worktrunk.chooseExecutable)\n[Try Again](command:worktrunk.refresh)"
+      },
+      {
+        "view": "worktrunk.worktrees",
+        "when": "!worktrunk.cliMissing && workbenchState == empty",
+        "contents": "Open a folder inside a git repository to see its worktrees.\n[Open Folder](command:workbench.action.files.openFolder)"
       }
     ],
     "commands": [
@@ -140,6 +146,11 @@
       {
         "command": "worktrunk.remove",
         "title": "Remove Worktree…",
+        "category": "Worktrunk"
+      },
+      {
+        "command": "worktrunk.chooseExecutable",
+        "title": "Choose the wt Binary…",
         "category": "Worktrunk"
       }
     ],

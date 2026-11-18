@@ -70,8 +70,9 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const wt = resolveWorktrunk(config().get<string>("executable", ""));
+    void vscode.commands.executeCommand("setContext", "worktrunk.cliMissing", !wt);
+    provider.setUnavailable(!wt);
     if (!wt) {
-      provider.setError("Could not find the `wt` binary. Install Worktrunk (brew install worktrunk) or set worktrunk.executable.");
       return;
     }
     lastRefresh = Date.now();
@@ -179,6 +180,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("worktrunk.refresh", () => refresh()),
+    vscode.commands.registerCommand("worktrunk.chooseExecutable", async () => {
+      const picked = await vscode.window.showOpenDialog({
+        title: "Select the Worktrunk binary (wt or git-wt)",
+        canSelectMany: false,
+        canSelectFolders: false,
+      });
+      if (!picked?.[0]) return;
+      await config().update("executable", picked[0].fsPath, vscode.ConfigurationTarget.Global);
+    }),
     vscode.commands.registerCommand("worktrunk.openCurrentPr", () => {
       const url = statusBar.currentUrl;
       return url && vscode.env.openExternal(vscode.Uri.parse(url));

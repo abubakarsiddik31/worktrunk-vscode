@@ -108,6 +108,15 @@ export class WorktreeProvider implements vscode.TreeDataProvider<Node> {
     this.changed.fire();
   }
 
+  private unavailable = false;
+
+  setUnavailable(unavailable: boolean): void {
+    if (unavailable === this.unavailable) return;
+    this.unavailable = unavailable;
+    if (unavailable) this.list = undefined;
+    this.changed.fire();
+  }
+
   setError(message: string | undefined): void {
     this.error = message;
     this.changed.fire();
@@ -138,7 +147,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<Node> {
     if (node instanceof GroupNode) {
       return node.worktrees;
     }
-    if (node) {
+    if (node || this.unavailable) {
       return [];
     }
     const nodes: Node[] = [];
