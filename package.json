@@ -67,6 +67,12 @@
         "category": "Worktrunk"
       },
       {
+        "command": "worktrunk.removeMerged",
+        "title": "Remove All Merged Worktrees…",
+        "icon": "$(clear-all)",
+        "category": "Worktrunk"
+      },
+      {
         "command": "worktrunk.prune",
         "title": "Prune Missing Worktrees",
         "icon": "$(trash)",
@@ -153,9 +159,19 @@
           "command": "worktrunk.prune",
           "when": "view == worktrunk.worktrees",
           "group": "1_manage"
+        },
+        {
+          "command": "worktrunk.removeMerged",
+          "when": "view == worktrunk.worktrees",
+          "group": "1_manage@1"
         }
       ],
       "view/item/context": [
+        {
+          "command": "worktrunk.removeMerged",
+          "when": "view == worktrunk.worktrees && viewItem == group:merged",
+          "group": "inline@1"
+        },
         {
           "command": "worktrunk.openPr",
           "when": "view == worktrunk.worktrees && viewItem =~ /:pr\\b/",

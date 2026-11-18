@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { hasUncommitted, isMerged, Worktree, worktreeLabel } from "./format";
+import { hasUncommitted, isMerged, isRemovable, Worktree, worktreeLabel } from "./format";
 import { isWorktree, WorktreeProvider } from "./tree";
 import {
   gitCommonDir,
@@ -369,6 +369,55 @@ export function activate(context: vscode.ExtensionContext): void {
     const terminal = vscode.window.createTerminal({ name: worktreeLabel(w.item, true), cwd: w.item.worktree.path });
     terminal.show();
   });
+  context.subscriptions.push(
+    vscode.commands.registerCommand("worktrunk.removeMerged", async () => {
+      const t = tools();
+      if (!t) return;
+      const merged = provider.worktrees().filter((w) => isMerged(w.item) && !w.item.worktree.prunable);
+      const targets = merged.filter((w) => isRemovable(w.item) && !hasUncommitted(w.item));
+      const skipped = merged.filter((w) => !targets.includes(w));
+      if (!targets.length) {
+        void vscode.window.showInformationMessage(
+          skipped.length
+            ? `${skipped.length} merged worktree${skipped.length === 1 ? " is" : "s are"} locked, open here or holding uncommitted changes; nothing to remove.`
+            : "No merged worktrees to remove.",
+        );
+        return;
+      }
+      const lines = targets.map((w) => `• ${worktreeLabel(w.item, false)}  —  ${w.item.worktree.path}`);
+      if (skipped.length) {
+        lines.push("", `Skipped (locked, open here or uncommitted changes): ${skipped.map((w) => worktreeLabel(w.item, false)).join(", ")}`);
+      }
+      const choice = await vscode.window.showWarningMessage(
+        `Remove ${targets.length} merged worktree${targets.length === 1 ? "" : "s"} and their branches?`,
+        { modal: true, detail: lines.join("\n") },
+        "Remove All",
+      );
+      if (choice !== "Remove All") return;
+      const failures: string[] = [];
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: "Removing merged worktrees", cancellable: true },
+        async (progress, token) => {
+          for (const w of targets) {
+            if (token.isCancellationRequested) break;
+            progress.report({ message: worktreeLabel(w.item, false), increment: 100 / targets.length });
+            try {
+              await removeWorktree(t.wt, t.cwd, w.item.worktree.path);
+              log(`removed ${w.item.worktree.path}`);
+            } catch (error) {
+              log((error as Error).message);
+              failures.push(worktreeLabel(w.item, false));
+            }
+          }
+        },
+      );
+      await refresh();
+      if (failures.length) {
+        void vscode.window.showErrorMessage(`Could not remove ${failures.join(", ")}. See Output › Worktrunk.`);
+      }
+    }),
+  );
+
   register("worktrunk.remove", async (w) => {
     const t = tools();
     if (!t) return;
