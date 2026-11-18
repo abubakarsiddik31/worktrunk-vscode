@@ -223,13 +223,15 @@ export class PullRequestFinder {
   async findAll(owner: string, name: string, shas: string[], cwd: string, onError: (error: Error) => void): Promise<void> {
     const pending = [...new Set(shas)].filter((sha) => !this.bySha.has(sha)).slice(0, MAX_PR_LOOKUPS);
     let next = 0;
+    let failed = false;
     const worker = async () => {
-      while (next < pending.length) {
+      while (!failed && next < pending.length) {
         const sha = pending[next++];
         try {
           this.bySha.set(sha, await this.lookup(owner, name, sha, cwd));
         } catch (error) {
-          onError(error as Error);
+          if (!failed) onError(error as Error);
+          failed = true;
         }
       }
     };
