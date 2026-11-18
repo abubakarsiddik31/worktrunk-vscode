@@ -5,3 +5,6 @@ tsconfig.json
 .gitignore
 *.vsix
 out/test/**
+.github/**
+.vscode/**
+media/logo.svg

@@ -1,16 +1,37 @@
 {
   "name": "worktrunk-vscode",
   "displayName": "Worktrunk Worktrees",
-  "description": "Every git worktree of the open repo, with its PR, CI and merge state, powered by the Worktrunk CLI.",
+  "description": "Every git worktree in one sidebar, with its pull request, CI and merge state. A front end for the Worktrunk CLI.",
   "version": "0.1.0",
   "publisher": "abubakarsiddik31",
-  "private": true,
+  "author": {
+    "name": "Abu Bakar Siddik",
+    "url": "https://github.com/abubakarsiddik31"
+  },
   "license": "MIT",
   "icon": "media/icon.png",
   "galleryBanner": {
     "color": "#14532d",
     "theme": "dark"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abubakarsiddik31/worktrunk-vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/abubakarsiddik31/worktrunk-vscode/issues"
+  },
+  "homepage": "https://github.com/abubakarsiddik31/worktrunk-vscode#readme",
+  "keywords": [
+    "git",
+    "worktree",
+    "worktrees",
+    "worktrunk",
+    "pull request",
+    "github",
+    "ci"
+  ],
+  "private": true,
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -363,7 +384,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "package": "vsce package --no-dependencies --allow-missing-repository --skip-license -o worktrunk-vscode.vsix",
+    "package": "vsce package --no-dependencies",
     "test": "npm run compile && node --test \"out/test/**/*.test.js\"",
     "vscode:prepublish": "npm run compile"
   },
