@@ -163,7 +163,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const schedule = () => {
     if (timer) clearInterval(timer);
     const seconds = config().get<number>("refreshIntervalSeconds", 120);
-    timer = seconds > 0 ? setInterval(() => void refresh(), seconds * 1000) : undefined;
+    timer =
+      seconds > 0
+        ? setInterval(() => {
+            if (vscode.window.state.focused) void refresh();
+          }, seconds * 1000)
+        : undefined;
   };
   context.subscriptions.push({ dispose: () => timer && clearInterval(timer) });
 
